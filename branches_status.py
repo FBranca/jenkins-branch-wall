@@ -33,6 +33,13 @@ html {
   text-align: center;
 }
 
+#ctx_menu {
+  visibility: hidden;
+  position: absolute;
+  display: inline;
+  background: #554444;
+}
+
 table {
   margin: 10px 0 30px 0;
 }
@@ -60,6 +67,11 @@ table .branche {
 }
 
 table .SUCCESS { 
+  background: #00BB00;
+  text-align: center;
+}
+
+table .OK { 
   background: #00BB00;
   text-align: center;
 }
@@ -119,11 +131,23 @@ status = None
 branch = None
 
 # Read parameters passed by the command line (CGI)
+get_params = urlparse.parse_qs(os.environ['QUERY_STRING'])
 try:
-	get_params = urlparse.parse_qs(os.environ['QUERY_STRING'])
 	variant  = get_params['variant'][0]
 except:
-	variant = None
+	variant = "Status"
+
+try:
+	MAX_BRANCH_PER_PAGE = int(get_params['view_size'][0])
+except:
+	pass
+	
+try:
+	force_status  = get_params['force_status'][0]
+	force_branch  = get_params['branch'][0]
+except:
+	force_status = None
+	force_branch = None
 
 # Read (if available) json data in the body of the request
 try:
@@ -155,6 +179,13 @@ if branch and variant and status :
 	with open(BRANCHES_STATUS, "w") as f:
 		f.write (PyJSONSerialization.dump(branch_list))
 
+if force_branch and variant and force_status :
+	branch_list[force_branch].set_result(variant, force_status, None)
+	
+	# Sauvegarde le résultat
+	with open(BRANCHES_STATUS, "w") as f:
+		f.write (PyJSONSerialization.dump(branch_list))
+
 # Présente le résultat
 print '''Content-type: text/html;charset=utf-8'
 
@@ -166,6 +197,22 @@ print '''Content-type: text/html;charset=utf-8'
   <style>''' + CSS + '''
   </style>
 </head>
+<script language="javascript" type="text/javascript">
+function ShowMenu(self, e) {
+console.log(self.id)
+  var posx = e.clientX + window.pageXOffset +'px'; // Left Position of Mouse Pointer
+  var posy = e.clientY + window.pageYOffset + 'px'; // Top Position of Mouse Pointer
+  var menu = self.querySelectorAll("#ctx_menu")[0];
+  menu.style.visibility = 'visible';
+  menu.style.position = 'absolute';
+  menu.style.display = 'inline';
+  menu.style.left = posx;
+  menu.style.top = posy;
+  self.onmouseleave = function(){menu.style.visibility = 'hidden';};
+  
+  return false;
+}
+</script>
 '''
 
 # ###############################################################
@@ -192,22 +239,31 @@ print '''</tr>'''
 cpt = 0
 for (branch_name, branch_status) in sorted(branch_list.items(), key=lambda(k,v): v.date_maj, reverse=True):
 	# Remove "origin/" (it's not the interesting part)
-	branch_name = branch_name.replace("origin/", "")
-	print '''<tr><td class="branche">''' + branch_name + '''</td>'''
+	branch_name_short = branch_name.replace("origin/", "")
+	print '''<tr><td class="branche">''' + branch_name_short + '''</td>'''
 	
 	# Add a column for each variant
 	for variant in variant_list:
 		try:
 			status = branch_status.variants[variant].status
 			url    = branch_status.variants[variant].url
-			print '''<td class="''' + status + '''"><a class="''' + status + '''" href="''' + url + '''">''' + status + '''</a></td>'''
+			if url:
+				href = ''' href="''' + url + '''"'''
+			else:
+				href = ""
+			print '''<td class="''' + status + '''" onContextMenu="return ShowMenu(this, event);">
+			<div id="ctx_menu">
+			<a href="?branch=''' + escape(branch_name) + '''&variant=''' + escape(variant) + '''&force_status=OK"/>Forcer OK</a>
+			</div>
+			<a class="''' + status + '''"''' + href + '''>''' + status + '''</a>
+			</td>'''
 		except KeyError:
 			# The variant doen't exists for this branch
 			print '''<td/>'''
 
 	print '''</tr>'''
 	cpt += 1
-	if cpt > MAX_BRANCH_PER_PAGE:
+	if cpt >= MAX_BRANCH_PER_PAGE:
 		# Stop when whe reach the maximum number of branch to display
 		break
 	
