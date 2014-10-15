@@ -61,10 +61,18 @@ table .branche {
 
 table .SUCCESS { 
   background: #00BB00;
+  text-align: center;
 }
 
 table .FAILURE {
   background: #BB0000;
+  text-align: center;
+}
+
+table .UNSTABLE {
+  background: #F6FF00;
+  color: #000000;
+  text-align: center;
 }
 
 a {
